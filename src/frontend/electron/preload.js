@@ -18,6 +18,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onOpenSettings: (callback) => {
     ipcRenderer.on('open-settings', () => callback())
   },
+  // 新增事件监听
+  onShowChat: (callback) => {
+    ipcRenderer.on('show-chat', () => callback())
+  },
+  onWakeUp: (callback) => {
+    ipcRenderer.on('wake-up', () => callback())
+  },
   
   // 移除监听
   removeAllListeners: (channel) => {

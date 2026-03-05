@@ -116,7 +116,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     is_wake = wake_word_detector.detect(message.get("data"))
                     if is_wake:
                         await manager.send_message({"type": "wake_word"})
-            elif message.get("type") == "stop_wake"):
+            elif message.get("type") == "stop_wake":
                 if wake_word_detector:
                     wake_word_detector.stop()
                     

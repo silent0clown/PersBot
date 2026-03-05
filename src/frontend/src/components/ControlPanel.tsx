@@ -20,7 +20,7 @@ export default function ControlPanel({ messages, onSendMessage, botState }: Cont
   }
 
   return (
-    <div className="control-panel">
+    <div className="control-panel no-drag">
       <div className="messages-container">
         {messages.length === 0 ? (
           <div className="empty-state">

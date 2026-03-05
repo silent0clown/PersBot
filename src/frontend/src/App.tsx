@@ -21,7 +21,7 @@ function App() {
 
   useEffect(() => {
     // 连接后端 WebSocket
-    const ws = new WebSocket('ws://localhost:8765')
+    const ws = new WebSocket('ws://localhost:8000/ws')
     
     ws.onopen = () => {
       console.log('Connected to backend')
@@ -45,6 +45,19 @@ function App() {
     if (window.electronAPI) {
       window.electronAPI.onBackendMessage((message: any) => {
         handleBackendMessage(message)
+      })
+      
+      window.electronAPI.onOpenSettings(() => {
+        console.log('Settings opened')
+      })
+      
+      window.electronAPI.onShowChat(() => {
+        console.log('Show chat requested')
+      })
+      
+      window.electronAPI.onWakeUp(() => {
+        setBotState('listening')
+        setTimeout(() => setBotState('idle'), 2000)
       })
     }
 

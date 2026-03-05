@@ -6,13 +6,20 @@ let tray = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 600,
+    width: 220,
+    height: 220,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    skipTaskbar: false,
+    skipTaskbar: true,
     resizable: false,
+    hasShadow: false,
+    fullscreenable: false,
+    maximizable: false,
+    minimizable: false,
+    movable: true,
+    // 关键设置：让窗口可穿透点击（除了交互区域）
+    acceptFirstMouse: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -36,6 +43,21 @@ function createWindow() {
       event.preventDefault()
       mainWindow.hide()
     }
+  })
+  
+  // 右键菜单
+  const { Menu } = require('electron')
+  const contextMenu = Menu.buildFromTemplate([
+    { label: '显示聊天窗口', click: () => mainWindow.webContents.send('show-chat') },
+    { label: '语音唤醒', click: () => mainWindow.webContents.send('wake-up') },
+    { type: 'separator' },
+    { label: '设置', click: () => mainWindow.webContents.send('open-settings') },
+    { type: 'separator' },
+    { label: '退出', click: () => { app.isQuitting = true; app.quit() } }
+  ])
+  
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    contextMenu.popup(mainWindow)
   })
 }
 

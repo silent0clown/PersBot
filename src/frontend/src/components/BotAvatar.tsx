@@ -8,7 +8,7 @@ interface BotAvatarProps {
   state: BotState
 }
 
-function Robot({ state }: BotState) {
+function Robot({ state }: { state: BotState }) {
   const groupRef = useRef<THREE.Group>(null)
   const leftEyeRef = useRef<THREE.Mesh>(null)
   const rightEyeRef = useRef<THREE.Mesh>(null)

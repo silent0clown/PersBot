@@ -1,14 +1,14 @@
 import logging
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 class WakeWordDetector:
-    def __init__(self, keywords: list[str] = None):
-        self.keywords = keywords or ["jarvis", "贾维斯"]
+    def __init__(self, keywords: Optional[List[str]] = None):
+        self.keywords = keywords if keywords is not None else ["jarvis", "贾维斯"]
         self.is_listening = False
-        self Porcupine = None
+        self.Porcupine = None
         self.porcupine = None
         self._init_porcupine()
     
@@ -16,10 +16,24 @@ class WakeWordDetector:
         try:
             import pvporcupine
             self.Porcupine = pvporcupine
-            self.porcupine = pvporcupine.create(
-                keywords=self.keywords,
-                sensitivities=[0.5] * len(self.keywords)
-            )
+            
+            # Try to create with access key from environment or use default
+            import os
+            access_key = os.environ.get('PORCUPINE_ACCESS_KEY')
+            
+            if access_key:
+                self.porcupine = pvporcupine.create(
+                    access_key=access_key,
+                    keywords=self.keywords,
+                    sensitivities=[0.5] * len(self.keywords)
+                )
+            else:
+                # Try without access key (may work with older versions)
+                self.porcupine = pvporcupine.create(
+                    keywords=self.keywords,
+                    sensitivities=[0.5] * len(self.keywords)
+                )
+            
             logger.info(f"Wake word detector initialized with keywords: {self.keywords}")
         except Exception as e:
             logger.warning(f"Porcupine not available: {e}")

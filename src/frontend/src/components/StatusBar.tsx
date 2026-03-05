@@ -10,7 +10,7 @@ interface StatusBarProps {
 
 export default function StatusBar({ isConnected, state, onMinimize, onClose }: StatusBarProps) {
   return (
-    <div className="status-bar">
+    <div className="status-bar no-drag">
       <div className="status-left">
         <div className={`connection-dot ${isConnected ? 'connected' : ''}`} />
         <span className="status-text">

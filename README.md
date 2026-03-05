@@ -121,6 +121,17 @@ PersBot/
 - 语音合成: `tts/tts_engine.py`
 - APP映射: `controller/app_controller.py`
 
+### 环境变量
+
+- `PORCUPINE_ACCESS_KEY`: Porcupine唤醒词检测的访问密钥（可选）
+- `OLLAMA_HOST`: Ollama服务器地址，默认为 `http://localhost:11434`
+
+### 依赖说明
+
+- **后端**: Python 3.10+, FastAPI, faster-whisper, pvporcupine, ollama
+- **前端**: Node.js 18+, Electron, React, Three.js
+- **系统**: Windows 10/11 (推荐), Linux/MacOS (部分功能可能受限)
+
 ## 构建发布
 
 ```bash
