@@ -8,7 +8,7 @@ interface StatusBarProps {
   onClose: () => void
 }
 
-export default function StatusBar({ isConnected, state, onMinimize, onClose }: StatusBarProps) {
+export default function StatusBar({ isConnected, onMinimize, onClose }: StatusBarProps) {
   return (
     <div className="status-bar no-drag">
       <div className="status-left">

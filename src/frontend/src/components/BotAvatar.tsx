@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Sphere, Cylinder } from '@react-three/drei'
+import { Sphere, Cylinder, Cone } from '@react-three/drei'
+import * as THREE from 'three'
 import { BotState } from '../App'
 import './BotAvatar.css'
 
@@ -15,7 +16,7 @@ function CutePenguin({ state }: { state: BotState }) {
   const blushLeftRef = useRef<THREE.Mesh>(null)
   const blushRightRef = useRef<THREE.Mesh>(null)
   
-  useFrame((_, delta) => {
+  useFrame((_) => {
     if (!groupRef.current) return
     
     // 待机动画 - 轻微摇摆
@@ -76,7 +77,7 @@ function CutePenguin({ state }: { state: BotState }) {
       
       {/* 背部 - 黑色半椭圆 */}
       <Sphere args={[1.4, 1.0, 1.8, 32, 32]} position={[0, 0, -0.1]}>
-        <meshStandardMaterial color="#1a1a1a" metalness={0.2} roughness={0.7} side={THREE.BackSide} />
+        <meshStandardMaterial color="#1a1a1a" metalness={0.2} roughness={0.7} side={THREE.FrontSide} />
       </Sphere>
       
       {/* 头部 - 黑色圆形 */}

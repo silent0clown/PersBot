@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import BotAvatar from './components/BotAvatar'
 import ControlPanel from './components/ControlPanel'
 import StatusBar from './components/StatusBar'
@@ -51,14 +50,22 @@ function App() {
         console.log('Settings opened')
       })
       
-      window.electronAPI.onShowChat(() => {
-        console.log('Show chat requested')
-      })
+      // @ts-ignore
+      if (window.electronAPI.onShowChat) {
+        // @ts-ignore
+        window.electronAPI.onShowChat(() => {
+          console.log('Show chat requested')
+        })
+      }
       
-      window.electronAPI.onWakeUp(() => {
-        setBotState('listening')
-        setTimeout(() => setBotState('idle'), 2000)
-      })
+      // @ts-ignore
+      if (window.electronAPI.onWakeUp) {
+        // @ts-ignore
+        window.electronAPI.onWakeUp(() => {
+          setBotState('listening')
+          setTimeout(() => setBotState('idle'), 2000)
+        })
+      }
     }
 
     return () => {
