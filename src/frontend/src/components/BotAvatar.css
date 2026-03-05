@@ -1,8 +1,8 @@
 .bot-avatar-container {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 220px;
   position: relative;
-  margin-top: 20px;
+  margin-top: 10px;
 }
 
 .bot-avatar-container canvas {
@@ -12,13 +12,15 @@
 
 .state-indicator {
   position: absolute;
-  bottom: -20px;
+  bottom: -25px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(79, 70, 229, 0.8);
+  background: rgba(255, 159, 67, 0.8);
   color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
+  padding: 6px 16px;
+  border-radius: 20px;
   font-size: 12px;
+  font-weight: bold;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
