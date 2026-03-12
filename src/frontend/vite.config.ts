@@ -16,6 +16,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true
-  }
+    emptyOutDir: true,
+    assetsInlineLimit: 0 // 确保大文件不被内联
+  },
+  assetsInclude: ['**/*.fbx'] // 包含FBX文件
 })

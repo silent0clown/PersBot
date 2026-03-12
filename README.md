@@ -113,7 +113,19 @@ PersBot/
 
 ## 配置
 
-可以在 `src/backend/core/` 目录下各模块中修改配置:
+### 环境变量配置
+
+后端现在使用 `.env` 文件进行配置。复制 `.env.example` 为 `.env` 并根据需要修改：
+
+```bash
+cp .env.example .env
+```
+
+详细配置说明请参考 [Backend README](src/backend/README.md)
+
+### 各模块配置
+
+可以在 `src/backend/core/` 目录下各模块中修改特定配置:
 
 - 唤醒词: `wake_word/wake_word_detector.py`
 - 语音识别: `asr/asr_engine.py`  
@@ -124,7 +136,7 @@ PersBot/
 ### 环境变量
 
 - `PORCUPINE_ACCESS_KEY`: Porcupine唤醒词检测的访问密钥（可选）
-- `OLLAMA_HOST`: Ollama服务器地址，默认为 `http://localhost:11434`
+- 其他配置请参考 `.env` 文件和 [Backend README](src/backend/README.md)
 
 ### 依赖说明
 

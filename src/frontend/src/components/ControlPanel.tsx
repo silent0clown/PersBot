@@ -42,9 +42,9 @@ export default function ControlPanel({ messages, onSendMessage, botState }: Cont
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="输入消息..."
-          disabled={botState !== 'idle' && botState !== 'speaking'}
+          disabled={botState === 'error'}
         />
-        <button type="submit" disabled={!input.trim() || botState !== 'idle'}>
+        <button type="submit" disabled={!input.trim()}>
           发送
         </button>
       </form>

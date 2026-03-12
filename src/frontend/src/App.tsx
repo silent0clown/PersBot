@@ -120,8 +120,10 @@ function App() {
     }).catch(console.error)
   }
 
+  const isElectron = !!window.electronAPI
+  
   return (
-    <div className="app-container">
+    <div className={`app-container ${isElectron ? 'electron' : ''}`}>
       <StatusBar 
         isConnected={isConnected} 
         state={botState}

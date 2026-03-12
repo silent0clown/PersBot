@@ -5,7 +5,11 @@
   flex-direction: column;
   background: transparent;
   overflow: visible;
-  -webkit-app-region: drag; /* 整个窗口可拖拽 */
+}
+
+/* 只在Electron环境中启用拖拽 */
+.electron .app-container {
+  -webkit-app-region: drag;
 }
 
 .main-content {
