@@ -11,8 +11,10 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5173,
-    strictPort: true
+    host: '0.0.0.0',  // 允许外部访问
+    port: 9000,
+    strictPort: true,
+    open: true  // 自动在浏览器中打开
   },
   build: {
     outDir: 'dist',

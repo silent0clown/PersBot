@@ -5,18 +5,20 @@ let mainWindow = null
 let tray = null
 
 function createWindow() {
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+  
   mainWindow = new BrowserWindow({
-    width: 240,
-    height: 260,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    hasShadow: false,
-    fullscreenable: false,
-    maximizable: false,
-    minimizable: false,
+    width: isDev ? 800 : 240,  // 开发模式更大的窗口
+    height: isDev ? 600 : 260,
+    frame: isDev ? true : false,  // 开发模式显示边框
+    transparent: !isDev,  // 只在部署模式下透明
+    alwaysOnTop: !isDev,  // 开发模式不需要总在顶层
+    skipTaskbar: !isDev,  // 开发模式不跳过任务栏
+    resizable: isDev,  // 开发模式可调整大小
+    hasShadow: isDev,  // 开发模式显示阴影
+    fullscreenable: isDev,  // 开发模式支持全屏
+    maximizable: isDev,  // 开发模式可最大化
+    minimizable: isDev,  // 开发模式可最小化
     movable: true,
     // 关键设置：让窗口可穿透点击（除了交互区域）
     acceptFirstMouse: true,
@@ -27,7 +29,7 @@ function createWindow() {
     }
   })
 
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+  if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {

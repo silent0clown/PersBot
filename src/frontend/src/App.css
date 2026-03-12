@@ -15,11 +15,242 @@
 .main-content {
   flex: 1;
   display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 10px;
+  gap: 10px;
+  width: 100%;
+  height: calc(100% - 40px); /* 减去状态栏高度 */
+}
+
+/* 开发模式样式 - 更适合浏览器调试 */
+.main-content.development {
+  width: 100%;
+  height: calc(100vh - 40px);
+}
+
+/* 桌面模式样式 - 适合桌面悬浮窗 */
+.main-content.desktop {
+  width: 600px;
+  height: 400px;
+}
+
+.pet-area {
+  width: 200px;
+  height: 100%;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.chat-area {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.empty-state p {
+  margin: 4px 0;
+}
+
+.message {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 14px;
+  word-wrap: break-word;
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: #4f46e5;
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: #f0f0f0;
+  color: black;
+  border-bottom-left-radius: 4px;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.message-header.user {
+  justify-content: flex-end;
+}
+
+.message-header .sender {
+  font-weight: bold;
+}
+
+.message-content {
+  line-height: 1.5;
+  position: relative;
+}
+
+.message-content .speak-btn {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.message-timestamp {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.message-header .copy-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.6;
+}
+
+.message-header .copy-btn:hover {
+  opacity: 1;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.input-form {
+  display: flex;
+  gap: 8px;
+}
+
+.input-form input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #ccc; /* 浅灰色边框 */
+  border-radius: 20px;
+  background: white; /* 白色背景 */
+  color: black; /* 黑色文字 */
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-form input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.input-form input::placeholder {
+  color: #999; /* 灰色占位文字 */
+}
+
+.input-form button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 20px;
+  background: #4f46e5;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.input-form button:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.input-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.quick-actions button {
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-actions button:hover {
+  background: rgba(79, 70, 229, 0.5);
+  border-color: #4f46e5;
+}
+
+/* 滚动条样式 */
+.messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 /* 禁用拖拽区域（交互元素） */

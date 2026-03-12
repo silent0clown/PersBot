@@ -138,15 +138,8 @@ async def chat(request: ChatRequest):
             "content": response
         })
         
-        if tts_engine:
-            audio_data = await tts_engine.synthesize(response)
-            await manager.send_message({
-                "type": "audio",
-                "data": audio_data
-            })
-        
-        await manager.send_message({"type": "idle"})
-        
+        # 仅返回文本响应，不触发TTS
+        logger.info(f"Chat response: {response}")
         return {"response": response}
     except Exception as e:
         logger.error(f"Chat error: {e}")

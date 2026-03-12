@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import BotAvatar from './components/BotAvatar'
-import ControlPanel from './components/ControlPanel'
 import StatusBar from './components/StatusBar'
 import './App.css'
 
@@ -17,6 +16,50 @@ function App() {
   const [botState, setBotState] = useState<BotState>('idle')
   const [messages, setMessages] = useState<BotMessage[]>([])
   const [isConnected, setIsConnected] = useState(false)
+  const [input, setInput] = useState('')
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const isDevelopmentMode = process.env.NODE_ENV === 'development';
+  
+  // 滚动到最新消息
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  // 语音播放功能
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      setIsPlayingAudio(true);
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      utterance.onend = () => {
+        setIsPlayingAudio(false);
+      };
+      
+      utterance.onerror = () => {
+        setIsPlayingAudio(false);
+      };
+      
+      speechSynthesis.speak(utterance);
+    } else {
+      console.warn('浏览器不支持语音合成功能');
+      setIsPlayingAudio(false);
+    }
+  };
+  
+  // 复制消息内容
+  const copyMessage = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      // 可以添加一个提示，显示复制成功
+      console.log('复制成功');
+    }).catch(err => {
+      console.error('复制失败：', err);
+    });
+  };
 
   useEffect(() => {
     // 连接后端 WebSocket
@@ -74,6 +117,7 @@ function App() {
   }, [])
 
   const handleBackendMessage = (data: any) => {
+    console.log('Received backend message:', data)
     switch (data.type) {
       case 'wake_word':
         setBotState('listening')
@@ -101,27 +145,79 @@ function App() {
           timestamp: Date.now()
         }])
         break
+      default:
+        // 处理普通文本消息
+        if (typeof data === 'string') {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: data,
+            timestamp: Date.now()
+          }])
+        } else if (data && typeof data.content === 'string') {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: data.content,
+            timestamp: Date.now()
+          }])
+        }
+        break
     }
   }
 
-  const sendMessage = (content: string) => {
-    setMessages(prev => [...prev, {
+  const sendMessage = async (content: string) => {
+    // 添加用户消息
+    const userMessage = {
       id: Date.now().toString(),
-      role: 'user',
+      role: 'user' as const,
       content,
       timestamp: Date.now()
-    }])
+    }
+    setMessages(prev => [...prev, userMessage])
     
-    // 发送到后端
-    fetch('http://localhost:8000/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: content })
-    }).catch(console.error)
+    try {
+      // 发送请求并等待响应
+      const response = await fetch('http://localhost:8000/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content })
+      })
+      
+      if (!response.ok) throw new Error('Request failed')
+      
+      const data = await response.json()
+      
+      // 添加AI响应消息
+      const aiMessage = {
+        id: Date.now().toString(),
+        role: 'assistant' as const,
+        content: data.response,
+        timestamp: Date.now()
+      }
+      setMessages(prev => [...prev, aiMessage])
+    } catch (error) {
+      console.error('Failed to send message:', error)
+      // 可选：添加错误消息到聊天列表
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant' as const,
+        content: '抱歉，我暂时无法回答这个问题。',
+        timestamp: Date.now()
+      }])
+    }
   }
 
   const isElectron = !!window.electronAPI
   
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (input.trim()) {
+      sendMessage(input.trim())
+      setInput('')
+    }
+  }
+
   return (
     <div className={`app-container ${isElectron ? 'electron' : ''}`}>
       <StatusBar 
@@ -131,14 +227,80 @@ function App() {
         onClose={() => window.electronAPI?.hideWindow()}
       />
       
-      <main className="main-content">
-        <BotAvatar state={botState} />
+      <main className={`main-content ${isDevelopmentMode ? 'development' : 'desktop'}`}>
+        {/* 左侧：AI宠物区域 */}
+        <div className="pet-area">
+          <BotAvatar state={botState} />
+        </div>
         
-        <ControlPanel 
-          messages={messages}
-          onSendMessage={sendMessage}
-          botState={botState}
-        />
+        {/* 右侧：聊天对话框区域 */}
+        <div className="chat-area">
+          <div className="messages-container">
+            {messages.length === 0 ? (
+              <div className="empty-state">
+                <p>你好！我是 PersBot</p>
+                <p>可以语音唤醒我，或者直接打字聊天</p>
+              </div>
+            ) : (
+              messages.map(msg => (
+                <div key={msg.id} className={`message ${msg.role}`}>
+                  <div className={`message-header ${msg.role}`}>
+                    <span className="sender">{msg.role === 'user' ? '我' : 'PersBot'}</span>
+                    <button 
+                      className="copy-btn" 
+                      onClick={() => copyMessage(msg.content)}
+                      title="复制消息"
+                    >
+                      📋
+                    </button>
+                  </div>
+                  <div 
+                    className="message-content" 
+                    onClick={() => msg.role === 'assistant' && speakText(msg.content)}
+                  >
+                    {msg.content}
+                    {msg.role === 'assistant' && (
+                      <button 
+                        className="speak-btn" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          speakText(msg.content);
+                        }}
+                        title="语音播放"
+                      >
+                        ▶️
+                      </button>
+                    )}
+                  </div>
+                  <div className="message-timestamp">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* 输入框始终保持在底部 */}
+          <form onSubmit={handleSubmit} className="input-form">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="输入消息..."
+              disabled={botState === 'error'}
+            />
+            <button type="submit" disabled={!input.trim() || isPlayingAudio}>
+              发送
+            </button>
+          </form>
+
+          <div className="quick-actions">
+            <button onClick={() => sendMessage('打开微信')}>打开微信</button>
+            <button onClick={() => sendMessage('打开浏览器')}>打开浏览器</button>
+            <button onClick={() => sendMessage('截图')}>截图</button>
+          </div>
+        </div>
       </main>
     </div>
   )

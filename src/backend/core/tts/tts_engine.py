@@ -63,15 +63,21 @@ class TTSEngine:
             import tempfile
             import os
             
-            temp_path = tempfile.mktemp(suffix=".wav")
-            self.pyttsx3_engine.save_to_file(text, temp_path)
-            self.pyttsx3_engine.runAndWait()
+            # 使用 NamedTemporaryFile 安全创建临时文件
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+                temp_path = tmp_file.name
             
-            with open(temp_path, "rb") as f:
-                data = f.read()
-            
-            os.unlink(temp_path)
-            return data
+            try:
+                self.pyttsx3_engine.save_to_file(text, temp_path)
+                self.pyttsx3_engine.runAndWait()
+                
+                with open(temp_path, "rb") as f:
+                    data = f.read()
+                return data
+            finally:
+                # 确保临时文件被清理
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
         
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _synthesize)
