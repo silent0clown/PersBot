@@ -1,0 +1,16 @@
+servers:
+  # Example: Filesystem MCP server
+  # filesystem:
+  #   name: filesystem
+  #   command: npx
+  #   args:
+  #     - -y
+  #     - "@modelcontextprotocol/server-filesystem"
+  #     - /tmp
+  #   enabled: false
+
+  # Example: HTTP MCP server
+  # http-server:
+  #   name: http-server
+  #   url: http://localhost:8000/mcp
+  #   enabled: false

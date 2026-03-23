@@ -1,40 +1,35 @@
 import logging
-import os
 from typing import Optional, List, Dict
 
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from core.config import get_settings, LLMConfig
 
 logger = logging.getLogger(__name__)
 
+llm_settings = get_settings().llm
+
 class LLMClient:
     def __init__(self):
-        # Load configuration from environment variables
-        self.provider = os.getenv("LLM_PROVIDER", "ollama").lower()
-        self.model = self._get_env_var("OLLAMA_MODEL", "qwen:7b")
-        self.base_url = self._get_env_var("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.api_key = None
+        self.provider = llm_settings.provider
+        self.model = llm_settings.model
+        self.base_url = llm_settings.base_url
+        self.api_key = llm_settings.api_key
+        self.temperature = llm_settings.temperature
+        self.max_tokens = llm_settings.max_tokens
         
-        # Override with provider-specific settings
         if self.provider == "openai":
-            self.model = self._get_env_var("OPENAI_MODEL", "gpt-3.5-turbo")
-            self.base_url = self._get_env_var("OPENAI_BASE_URL", "https://api.openai.com/v1")
-            self.api_key = self._get_env_var("OPENAI_API_KEY")
+            openai_cfg = get_settings().openai
+            self.model = openai_cfg.model
+            self.base_url = openai_cfg.base_url
+            self.api_key = openai_cfg.api_key
         elif self.provider == "other":
-            self.model = self._get_env_var("OTHER_MODEL", "qwen:7b")
-            self.base_url = self._get_env_var("OTHER_BASE_URL", "http://localhost:11434")
-            self.api_key = self._get_env_var("OTHER_API_KEY")
+            other_cfg = get_settings().other_api
+            self.model = other_cfg.model
+            self.base_url = other_cfg.base_url
+            self.api_key = other_cfg.api_key
         
         self.client = None
         self._init_client()
         self.conversation_history: List[Dict[str, str]] = []
-    
-    def _get_env_var(self, key: str, default: str = None) -> str:
-        """Get environment variable with optional default value"""
-        value = os.getenv(key)
-        return value if value is not None else default
     
     def _init_client(self):
         try:

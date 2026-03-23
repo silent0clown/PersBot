@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -13,18 +12,21 @@ from pydantic import BaseModel
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from core.config import get_settings
 from core.wake_word.wake_word_detector import WakeWordDetector
 from core.asr.asr_engine import ASREngine
 from core.llm.llm_client import LLMClient
 from core.tts.tts_engine import TTSEngine
 from core.controller.app_controller import AppController
+from core.channels import FeishuChannel
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - [%(levelname)s] - %(name)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
+settings = get_settings()
 app = FastAPI(title="PersBot Backend")
 
 app.add_middleware(
@@ -63,9 +65,10 @@ asr_engine: Optional[ASREngine] = None
 llm_client: Optional[LLMClient] = None
 tts_engine: Optional[TTSEngine] = None
 app_controller: Optional[AppController] = None
+feishu_channel: Optional[FeishuChannel] = None
 
 async def initialize_components():
-    global wake_word_detector, asr_engine, llm_client, tts_engine, app_controller
+    global wake_word_detector, asr_engine, llm_client, tts_engine, app_controller, feishu_channel
     
     logger.info("Initializing components...")
     
@@ -98,10 +101,66 @@ async def initialize_components():
         logger.info("App controller initialized")
     except Exception as e:
         logger.warning(f"Failed to initialize app controller: {e}")
+    
+    # Initialize Feishu channel if enabled
+    logger.info(f"Feishu config - enabled: {settings.feishu.enabled}, app_id: {settings.feishu.app_id[:8] if settings.feishu.app_id else 'None'}...")
+    
+    if settings.feishu.enabled and settings.feishu.app_id and settings.feishu.app_secret:
+        try:
+            logger.info("Initializing Feishu channel...")
+            feishu_channel = FeishuChannel(
+                app_id=settings.feishu.app_id,
+                app_secret=settings.feishu.app_secret,
+                verification_token=settings.feishu.verification_token,
+                encrypt_key=settings.feishu.encrypt_key,
+                domain=settings.feishu.domain
+            )
+            
+            # Set message handler
+            feishu_channel.on_message(handle_feishu_message)
+            
+            # Start WebSocket client
+            feishu_channel.start()
+            
+            logger.info("Feishu channel initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Feishu channel: {e}")
+    else:
+        logger.warning("Feishu channel not enabled or missing app_id/app_secret")
+
+async def handle_feishu_message(message):
+    """Handle incoming Feishu message"""
+    global feishu_channel
+    try:
+        text = message.get_text()
+        if not text:
+            return
+        
+        logger.info(f"Received Feishu message from {message.sender_id}: {text}")
+        
+        # Process message with LLM
+        if llm_client:
+            response = await llm_client.chat(text)
+            
+            # Send response back via Feishu (reply to original message)
+            if feishu_channel:
+                feishu_channel.reply_text(
+                    message_id=message.message_id,
+                    text=response
+                )
+                logger.info(f"Sent Feishu reply to message {message.message_id}")
+    except Exception as e:
+        logger.error(f"Error handling Feishu message: {e}")
+
 
 @app.on_event("startup")
 async def startup_event():
     await initialize_components()
+    
+    # Register Feishu webhook routes if enabled
+    if feishu_channel:
+        feishu_channel.register_routes(app)
+        logger.info(f"Feishu webhook registered at {settings.feishu.webhook_path}")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -166,9 +225,15 @@ async def health_check():
             "asr": asr_engine is not None,
             "llm": llm_client is not None,
             "tts": tts_engine is not None,
-            "controller": app_controller is not None
+            "controller": app_controller is not None,
+            "feishu": feishu_channel is not None
         }
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=settings.server.host,
+        port=settings.server.port,
+        reload=settings.server.reload
+    )

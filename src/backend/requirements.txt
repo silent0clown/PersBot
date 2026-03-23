@@ -5,6 +5,7 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 websockets>=12.0
 pydantic>=2.5.0
+pydantic-settings>=2.1.0
 
 # Audio
 faster-whisper>=0.10.0
@@ -23,4 +24,17 @@ pyautogui>=0.9.54
 
 # Utils
 python-dotenv>=1.0.0
+pyyaml>=6.0
 aiofiles>=23.2.0
+
+# MCP - Model Context Protocol
+mcp>=1.0.0
+
+# Memory
+rank-bm25>=0.2.2
+numpy>=1.24.0
+
+# Channels
+requests>=2.31.0
+httpx>=0.25.0
+lark-oapi>=1.0.0

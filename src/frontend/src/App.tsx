@@ -185,17 +185,7 @@ function App() {
       })
       
       if (!response.ok) throw new Error('Request failed')
-      
-      const data = await response.json()
-      
-      // 添加AI响应消息
-      const aiMessage = {
-        id: Date.now().toString(),
-        role: 'assistant' as const,
-        content: data.response,
-        timestamp: Date.now()
-      }
-      setMessages(prev => [...prev, aiMessage])
+
     } catch (error) {
       console.error('Failed to send message:', error)
       // 可选：添加错误消息到聊天列表
@@ -245,35 +235,26 @@ function App() {
               messages.map(msg => (
                 <div key={msg.id} className={`message ${msg.role}`}>
                   <div className={`message-header ${msg.role}`}>
-                    <span className="sender">{msg.role === 'user' ? '我' : 'PersBot'}</span>
-                    <button 
-                      className="copy-btn" 
-                      onClick={() => copyMessage(msg.content)}
-                      title="复制消息"
-                    >
-                      📋
-                    </button>
+                    <div className="sender-info">
+                      <span className="sender">{msg.role === 'user' ? '我' : 'PersBot'}</span>
+                      <span className="message-timestamp">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {/* 播放按钮移动到角色名字后面 */}
+                      {msg.role === 'assistant' && (
+                        <button 
+                          className="header-speak-btn" 
+                          onClick={() => speakText(msg.content)}
+                          title="播放语音"
+                        >
+                          🔊
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div 
-                    className="message-content" 
-                    onClick={() => msg.role === 'assistant' && speakText(msg.content)}
-                  >
+                  {/* 移除 onClick 触发 speakText，让文字可以自由选择 */}
+                  <div className="message-content">
                     {msg.content}
-                    {msg.role === 'assistant' && (
-                      <button 
-                        className="speak-btn" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          speakText(msg.content);
-                        }}
-                        title="语音播放"
-                      >
-                        ▶️
-                      </button>
-                    )}
-                  </div>
-                  <div className="message-timestamp">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               ))
