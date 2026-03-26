@@ -1,0 +1,16 @@
+{
+  "name": "persbot-mcp-servers",
+  "version": "1.0.0",
+  "description": "PersBot MCP Server Dependencies",
+  "private": true,
+  "scripts": {
+    "install:weather": "npm install @anthropic/mcp-server-weather",
+    "install:search": "npm install @anthropic/mcp-server-brave-search",
+    "install:filesystem": "npm install @anthropic/mcp-server-filesystem",
+    "install:all": "npm install",
+    "start": "cd src/backend && python main.py"
+  },
+  "dependencies": {
+    "@anthropic/mcp-server-weather": "^1.0.0"
+  }
+}

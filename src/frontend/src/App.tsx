@@ -18,6 +18,7 @@ function App() {
   const [isConnected, setIsConnected] = useState(false)
   const [input, setInput] = useState('')
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const [alert, setAlert] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const isDevelopmentMode = process.env.NODE_ENV === 'development';
   
@@ -119,6 +120,10 @@ function App() {
   const handleBackendMessage = (data: any) => {
     console.log('Received backend message:', data)
     switch (data.type) {
+      case 'alert':
+        setAlert(data.message)
+        setTimeout(() => setAlert(null), 5000)
+        break
       case 'wake_word':
         setBotState('listening')
         break
@@ -216,6 +221,14 @@ function App() {
         onMinimize={() => window.electronAPI?.minimizeWindow()}
         onClose={() => window.electronAPI?.hideWindow()}
       />
+      
+      {alert && (
+        <div className="alert-banner" onClick={() => setAlert(null)}>
+          <span className="alert-icon">⚠️</span>
+          <span className="alert-message">{alert}</span>
+          <button className="alert-close">×</button>
+        </div>
+      )}
       
       <main className={`main-content ${isDevelopmentMode ? 'development' : 'desktop'}`}>
         {/* 左侧：AI宠物区域 */}

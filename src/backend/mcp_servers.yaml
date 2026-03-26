@@ -1,0 +1,24 @@
+# MCP Servers Configuration
+# 在这里配置你需要使用的 MCP 服务器
+
+servers:
+  # 天气服务 - 免费无需 API Key
+  weather:
+    name: weather
+    enabled: true
+    command: npx
+    args:
+      - -y
+      - weather-mcp
+    env: {}
+
+  # Brave 搜索
+  brave-search:
+    name: brave-search
+    enabled: false
+    command: npx
+    args:
+      - -y
+      - "@anthropic/mcp-server-brave-search"
+    env:
+      BRAVE_API_KEY: "${BRAVE_API_KEY}"

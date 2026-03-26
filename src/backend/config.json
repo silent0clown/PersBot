@@ -1,0 +1,61 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": false
+  },
+  "llm": {
+    "provider": "other",
+    "model": "qwen3.5:2b",
+    "base_url": "http://172.23.66.125:11434"
+  },
+  "openai": {
+    "model": "gpt-3.5-turbo",
+    "base_url": "https://api.openai.com/v1"
+  },
+  "other_api": {
+    "model": "GLM-4.7",
+    "base_url": "https://open.bigmodel.cn/api/paas/v4/"
+  },
+  "wake_word": {
+    "keywords": ["jarvis", "贾维斯"],
+    "sensitivity": 0.5
+  },
+  "asr": {
+    "model_size": "base",
+    "language": "",
+    "device": "auto"
+  },
+  "tts": {
+    "voice": "xiaoxiao",
+    "rate": "+0%",
+    "volume": "+0%"
+  },
+  "app": {
+    "hotkey": "ctrl+shift+space",
+    "start_minimized": false,
+    "auto_start": false
+  },
+  "mcp": {
+    "timeout": 30
+  },
+  "memory": {
+    "workspace": "~/.persbot/workspace",
+    "citations": "auto",
+    "auto_index": true
+  },
+  "persona": {
+    "name": "小P",
+    "personality": "友善、幽默、乐于助人",
+    "speaking_style": "轻松自然，偶尔调皮",
+    "background": "",
+    "system_prompt": "",
+    "config_file": "persona.yaml"
+  },
+  "feishu": {
+    "app_id": "cli_a94a5f88b9ba9cb1",
+    "domain": "https://open.feishu.cn",
+    "webhook_path": "/webhook/feishu",
+    "enabled": true
+  }
+}

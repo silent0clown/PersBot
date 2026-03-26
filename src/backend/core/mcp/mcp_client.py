@@ -7,7 +7,6 @@ import logging
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import StreamableHttpClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,9 @@ class MCPClient:
         self._exit_stack = AsyncExitStack()
 
         if self.server_params.url:
-            client = StreamableHttpClient(self.server_params.url)
+            # 使用 streamable_http_client 连接 HTTP MCP 服务器
+            from mcp.client.streamable_http import streamablehttp_client
+            client = streamablehttp_client(self.server_params.url)
             read, write = await self._exit_stack.enter_async_context(client)
         else:
             read, write = await self._exit_stack.enter_async_context(

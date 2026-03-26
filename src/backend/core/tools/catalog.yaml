@@ -1,0 +1,299 @@
+# PersBot 工具目录
+# 定义可用的工具和安装方式
+
+categories:
+  weather:
+    name: "天气服务"
+    icon: "🌤️"
+  search:
+    name: "信息检索"
+    icon: "🔍"
+  file:
+    name: "文件系统"
+    icon: "📁"
+  calendar:
+    name: "日程管理"
+    icon: "📅"
+  email:
+    name: "邮件服务"
+    icon: "📧"
+  code:
+    name: "代码工具"
+    icon: "💻"
+  database:
+    name: "数据库"
+    icon: "🗄️"
+  communication:
+    name: "通讯工具"
+    icon: "💬"
+
+tools:
+  # ========== 天气服务 ==========
+  weather:
+    name: "天气查询"
+    description: "查询任意城市的实时天气和天气预报"
+    category: weather
+    keywords: ["天气", "气温", "下雨", "weather", "温度", "预报"]
+    example_queries:
+      - "今天北京天气怎么样"
+      - "明天会下雨吗"
+      - "这周天气如何"
+    mcp_servers:
+      - name: "weather"
+        package: "@anthropic/mcp-server-weather"
+        description: "Anthropic 官方天气 MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-weather"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-weather"]
+        required_env:
+          - name: "WEATHER_API_KEY"
+            description: "OpenWeather API 密钥"
+            obtain_url: "https://openweathermap.org/api"
+            required: true
+
+  # ========== 网络搜索 ==========
+  web_search:
+    name: "网络搜索"
+    description: "搜索互联网获取实时信息"
+    category: search
+    keywords: ["搜索", "查找", "网上", "最新", "search", "google"]
+    example_queries:
+      - "帮我搜索最新的AI新闻"
+      - "查一下今天的热点"
+    mcp_servers:
+      - name: "brave-search"
+        package: "@anthropic/mcp-server-brave-search"
+        description: "Brave 搜索引擎 MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-brave-search"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-brave-search"]
+        required_env:
+          - name: "BRAVE_API_KEY"
+            description: "Brave Search API 密钥"
+            obtain_url: "https://brave.com/search/api/"
+            required: true
+      - name: "google-search"
+        package: "custom"
+        description: "Google 搜索（需要 SerpAPI）"
+        config:
+          command: "python"
+          args: ["-m", "mcp_server_google"]
+        required_env:
+          - name: "SERP_API_KEY"
+            description: "SerpAPI 密钥"
+            obtain_url: "https://serpapi.com/"
+            required: true
+
+  # ========== 文件系统 ==========
+  filesystem:
+    name: "文件系统"
+    description: "读写本地文件、浏览目录"
+    category: file
+    keywords: ["文件", "读取", "写入", "目录", "file", "folder"]
+    example_queries:
+      - "帮我看一下桌面上有什么文件"
+      - "读取这个文件的内容"
+    mcp_servers:
+      - name: "filesystem"
+        package: "@anthropic/mcp-server-filesystem"
+        description: "Anthropic 官方文件系统 MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-filesystem"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-filesystem", "/tmp"]
+        required_env: []
+
+  # ========== 日程管理 ==========
+  calendar:
+    name: "日程管理"
+    description: "管理日程、设置提醒"
+    category: calendar
+    keywords: ["日程", "提醒", "会议", "calendar", "schedule", "闹钟"]
+    example_queries:
+      - "帮我设置一个明天上午10点的提醒"
+      - "我今天有什么安排"
+    mcp_servers:
+      - name: "google-calendar"
+        package: "custom"
+        description: "Google Calendar 集成"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-google-calendar"]
+        required_env:
+          - name: "GOOGLE_CREDENTIALS"
+            description: "Google OAuth 凭证"
+            obtain_url: "https://console.cloud.google.com/"
+            required: true
+
+  # ========== 代码执行 ==========
+  code_executor:
+    name: "代码执行"
+    description: "执行 Python/JavaScript 代码"
+    category: code
+    keywords: ["代码", "运行", "执行", "code", "python", "javascript"]
+    example_queries:
+      - "帮我运行这段Python代码"
+      - "计算一下这个数学公式"
+    mcp_servers:
+      - name: "code interpreter"
+        package: "@anthropic/mcp-server-code"
+        description: "代码执行 MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-code"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-code"]
+        required_env: []
+
+  # ========== 浏览器控制 ==========
+  browser:
+    name: "浏览器控制"
+    description: "控制浏览器进行网页操作"
+    category: search
+    keywords: ["浏览器", "网页", "打开", "browser", "chrome", "截图"]
+    example_queries:
+      - "帮我打开百度"
+      - "截取当前网页的截图"
+    mcp_servers:
+      - name: "puppeteer"
+        package: "@anthropic/mcp-server-puppeteer"
+        description: "Puppeteer 浏览器控制 MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-puppeteer"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-puppeteer"]
+        required_env: []
+
+  # ========== 飞书集成 ==========
+  feishu:
+    name: "飞书集成"
+    description: "发送飞书消息、管理文档"
+    category: communication
+    keywords: ["飞书", "消息", "文档", "feishu", "lark"]
+    example_queries:
+      - "给张三发一条飞书消息"
+      - "在飞书上创建一个文档"
+    mcp_servers:
+      - name: "feishu"
+        package: "custom"
+        description: "飞书 MCP 服务器（需要自建）"
+        config:
+          command: "python"
+          args: ["-m", "mcp_server_feishu"]
+        required_env:
+          - name: "FEISHU_APP_ID"
+            description: "飞书应用 ID"
+            required: true
+          - name: "FEISHU_APP_SECRET"
+            description: "飞书应用密钥"
+            required: true
+
+  # ========== 记忆/知识库 ==========
+  memory:
+    name: "记忆管理"
+    description: "存储和检索对话记忆、知识"
+    category: database
+    keywords: ["记忆", "记住", "知识", "memory", "知识库"]
+    example_queries:
+      - "记住我的偏好设置"
+      - "我之前说过什么"
+    mcp_servers:
+      - name: "memory"
+        package: "@anthropic/mcp-server-memory"
+        description: "Anthropic 官方记忆 MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-memory"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-memory"]
+        required_env: []
+
+  # ========== GitHub ==========
+  github:
+    name: "GitHub 集成"
+    description: "操作 GitHub 仓库、Issues、PR"
+    category: code
+    keywords: ["github", "仓库", "issue", "pr", "代码"]
+    example_queries:
+      - "查看我的 GitHub 通知"
+      - "创建一个新的 Issue"
+    mcp_servers:
+      - name: "github"
+        package: "@anthropic/mcp-server-github"
+        description: "GitHub MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-github"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-github"]
+        required_env:
+          - name: "GITHUB_TOKEN"
+            description: "GitHub Personal Access Token"
+            obtain_url: "https://github.com/settings/tokens"
+            required: true
+
+  # ========== Slack ==========
+  slack:
+    name: "Slack 集成"
+    description: "发送 Slack 消息、管理频道"
+    category: communication
+    keywords: ["slack", "消息", "频道"]
+    example_queries:
+      - "在 Slack 上发送消息"
+    mcp_servers:
+      - name: "slack"
+        package: "@anthropic/mcp-server-slack"
+        description: "Slack MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-slack"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-slack"]
+        required_env:
+          - name: "SLACK_TOKEN"
+            description: "Slack Bot Token"
+            obtain_url: "https://api.slack.com/apps"
+            required: true
+
+  # ========== Notion ==========
+  notion:
+    name: "Notion 集成"
+    description: "读写 Notion 页面和数据库"
+    category: file
+    keywords: ["notion", "笔记", "文档"]
+    example_queries:
+      - "在 Notion 中创建一个新页面"
+    mcp_servers:
+      - name: "notion"
+        package: "@anthropic/mcp-server-notion"
+        description: "Notion MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-notion"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-notion"]
+        required_env:
+          - name: "NOTION_API_KEY"
+            description: "Notion Integration Token"
+            obtain_url: "https://www.notion.so/my-integrations"
+            required: true
+
+  # ========== 地图/位置 ==========
+  maps:
+    name: "地图服务"
+    description: "查询地点、导航、路线规划"
+    category: weather
+    keywords: ["地图", "位置", "导航", "路线", "maps", "location"]
+    example_queries:
+      - "北京到上海怎么走"
+      - "附近有什么餐厅"
+    mcp_servers:
+      - name: "google-maps"
+        package: "@anthropic/mcp-server-google-maps"
+        description: "Google Maps MCP 服务器"
+        install_command: "npx -y @anthropic/mcp-server-google-maps"
+        config:
+          command: "npx"
+          args: ["-y", "@anthropic/mcp-server-google-maps"]
+        required_env:
+          - name: "GOOGLE_MAPS_API_KEY"
+            description: "Google Maps API 密钥"
+            obtain_url: "https://console.cloud.google.com/google/maps-apis"
+            required: true
