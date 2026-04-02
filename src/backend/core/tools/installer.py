@@ -29,12 +29,12 @@ class MCPInstaller:
 
     def __init__(self, project_root: str = None):
         if project_root is None:
-            project_root = str(Path(__file__).parent.parent.parent.parent)
+            project_root = str(Path(__file__).parent.parent.parent)
 
         self.project_root = Path(project_root)
         self.mcp_servers_dir = self.project_root / "mcp-servers"
         self.package_json_path = self.project_root / "package.json"
-        self.mcp_config_path = self.project_root / "mcp_servers.yaml"
+        self.mcp_config_path = self.project_root / "config" / "mcp_servers.yaml"
 
     async def install_server(self, tool_id: str) -> InstallResult:
         """

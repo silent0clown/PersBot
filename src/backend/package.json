@@ -1,0 +1,10 @@
+{
+  "name": "persbot-mcp-servers",
+  "version": "1.0.0",
+  "description": "PersBot MCP Server Dependencies",
+  "private": true,
+  "dependencies": {
+    "@dangahagan/weather-mcp": "^1.6.1",
+    "@mcp-sidekick/weather": "^1.0.0"
+  }
+}

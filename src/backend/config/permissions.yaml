@@ -1,0 +1,74 @@
+# 权限配置文件
+# 安全路径白名单
+safe_paths:
+  read:
+    - "~/Documents"
+    - "~/Music"
+    - "~/Desktop"
+    - "~/Downloads"
+    - "/tmp"
+    - "~/.config"
+  write:
+    - "~/Documents/pet_workspace"
+    - "/tmp/pet"
+
+# 永久封禁路径
+blocked_paths:
+  - "~/.ssh"
+  - "~/.gnupg"
+  - "~/.aws"
+  - "~/.config/gcloud"
+  - "**/credentials*"
+  - "**/*.pem"
+  - "**/*.key"
+  - "**/id_rsa"
+  - "**/id_ed25519"
+
+# 命令白名单 (绿色权限 - 静默放行)
+command_whitelist:
+  - "ls"
+  - "cat"
+  - "head"
+  - "tail"
+  - "date"
+  - "df"
+  - "du"
+  - "uname"
+  - "whoami"
+  - "pwd"
+  - "echo"
+  - "wc"
+  - "git status"
+  - "git log"
+  - "git diff"
+  - "git branch"
+  - "which"
+  - "find"
+  - "grep"
+
+# 命令黑名单 (永久拦截)
+command_blacklist_patterns:
+  - "rm -rf /"
+  - "rm -rf /*"
+  - "mkfs"
+  - "dd if=/dev/"
+  - "> /dev/sd"
+  - "chmod -R 777 /"
+  - "chmod 777 /"
+  - "curl.*\\| bash"
+  - "wget.*\\| sh"
+  - ":\\(\\)\\{"
+  - "fork\\(\\)"
+  - "chown -R"
+  - "shutdown"
+  - "reboot"
+  - "init 0"
+  - "init 6"
+
+# 用户动态授权规则 (运行时追加)
+auto_approved_rules: []
+
+# 权限超时配置
+permission:
+  timeout_seconds: 120  # 用户确认超时时间 (秒)
+  auto_approve_timeout: 300  # "记住"规则的有效期 (秒), 0 表示永久

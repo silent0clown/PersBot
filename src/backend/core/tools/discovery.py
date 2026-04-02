@@ -121,15 +121,9 @@ class ToolDiscovery:
         query_lower = user_query.lower()
         query_words = set(re.findall(r'[\w\u4e00-\u9fff]+', query_lower))
 
-        registry = get_tool_registry()
+        self._refresh_install_status()
 
         for tool_id, tool in self._catalog.items():
-            # 检查是否已安装
-            is_installed = any(
-                registry.has_tool(f"{server.name}_{tool_id}")
-                for server in tool.mcp_servers
-            )
-            tool.is_installed = is_installed
 
             # 计算匹配分数
             score, reason = self._calculate_match_score(
@@ -186,12 +180,27 @@ class ToolDiscovery:
         reason = "; ".join(reasons) if reasons else "无匹配"
         return min(score, 1.0), reason
 
+    def _refresh_install_status(self):
+        """刷新所有 catalog 工具的安装状态"""
+        registry = get_tool_registry()
+        # 收集所有已注册工具的 server_name
+        installed_servers = set()
+        for tool_info in registry.get_all_tools():
+            installed_servers.add(tool_info.server_name)
+
+        for tool_id, tool in self._catalog.items():
+            tool.is_installed = any(
+                server.name in installed_servers
+                for server in tool.mcp_servers
+            )
+
     def get_tool_by_id(self, tool_id: str) -> Optional[CatalogTool]:
         """根据 ID 获取工具"""
         return self._catalog.get(tool_id)
 
     def get_all_tools(self) -> List[CatalogTool]:
-        """获取所有目录中的工具"""
+        """获取所有目录中的工具（动态刷新 is_installed 状态）"""
+        self._refresh_install_status()
         return list(self._catalog.values())
 
     def get_tools_by_category(self, category: str) -> List[CatalogTool]:

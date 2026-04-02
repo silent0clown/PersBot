@@ -27,7 +27,9 @@ class AgentTurn:
 
 
 class LLMClient:
-    def __init__(self):
+    def __init__(self, llm_system=None):
+        self._llm_system = llm_system  # (providers, router, budget) from create_llm_system()
+
         self.provider = llm_settings.provider
         self.model = llm_settings.model
         self.base_url = llm_settings.base_url

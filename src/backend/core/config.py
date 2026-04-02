@@ -41,13 +41,26 @@ class MCPConfig(BaseSettings):
         if v is not None and len(v) > 0:
             return v
         
-        config_file = info.data.get('config_file') or os.getenv('MCP_CONFIG_FILE', 'mcp_servers.yaml')
+        config_file = info.data.get('config_file') or os.getenv('MCP_CONFIG_FILE', 'config/mcp_servers.yaml')
+        # If config_file is an absolute path, use it directly
         yaml_path = Path(config_file)
+        if not yaml_path.is_absolute():
+            # First, try relative to the script directory (src/backend)
+            script_dir = Path(__file__).parent.parent
+            candidate = script_dir / config_file
+            if candidate.exists():
+                yaml_path = candidate
+            else:
+                # Fallback to current working directory
+                yaml_path = Path(config_file)
         
         if yaml_path.exists():
             with open(yaml_path, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f) or {}
                 servers_data = data.get('servers', {})
+                # If servers_data is None (e.g., empty YAML), treat as empty dict
+                if servers_data is None:
+                    servers_data = {}
                 servers = []
                 for name, config in servers_data.items():
                     if isinstance(config, dict):
@@ -183,7 +196,7 @@ class PersonaConfig(BaseSettings):
     speaking_style: str = Field(default="轻松自然，偶尔调皮", description="说话风格")
     background: str = Field(default="", description="角色背景故事")
     system_prompt: str = Field(default="", description="完整的系统提示词（优先级最高）")
-    config_file: Optional[str] = Field(default="persona.yaml", description="角色配置文件路径")
+    config_file: Optional[str] = Field(default="config/persona.yaml", description="角色配置文件路径")
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).parent.parent / ".env",

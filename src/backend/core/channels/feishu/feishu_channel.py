@@ -7,6 +7,8 @@ import lark_oapi as lark
 from lark_oapi.api.im.v1 import *
 import threading
 
+from ..protocol import PetRequest, PetResponse, ChannelType
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +29,21 @@ class FeishuMessage:
             return content.get("text", "")
         except:
             return self.content
+
+    def to_pet_request(self) -> PetRequest:
+        """转换为统一请求格式"""
+        return PetRequest(
+            user_id=self.user_id,
+            channel=ChannelType.FEISHU.value,
+            message_type=self.message_type,
+            content=self.get_text(),
+            session_id=self.chat_id,
+            metadata={
+                "message_id": self.message_id,
+                "chat_id": self.chat_id,
+                "chat_type": self.chat_type
+            }
+        )
 
 
 class FeishuChannel:
@@ -51,6 +68,10 @@ class FeishuChannel:
         self._thread: Optional[threading.Thread] = None
         self._processed_messages: set = set()
         self._lock = threading.Lock()
+
+    @property
+    def channel_name(self) -> str:
+        return ChannelType.FEISHU.value
         
     def _init_client(self):
         """Initialize Feishu client"""
@@ -159,6 +180,31 @@ class FeishuChannel:
     def on_message(self, handler: Callable):
         """Set message handler"""
         self._message_handler = handler
+        
+    def receive(self, raw_input: Any) -> PetRequest:
+        """将飞书消息转为统一请求"""
+        if isinstance(raw_input, FeishuMessage):
+            return raw_input.to_pet_request()
+        return PetRequest(
+            user_id="",
+            channel=self.channel_name,
+            content=""
+        )
+        
+    def send(self, response: PetResponse):
+        """将统一响应转为飞书消息并发出"""
+        if not self._client:
+            logger.error("Feishu client not initialized")
+            return
+        
+        metadata = response.metadata or {}
+        receive_id = metadata.get("user_id")
+        message_id = metadata.get("message_id")
+        
+        if message_id:
+            self.reply_text(message_id, response.text)
+        elif receive_id:
+            self.send_text(receive_id, response.text)
         
     def send_text(self, receive_id: str, text: str, receive_id_type: str = "open_id") -> bool:
         """Send text message"""

@@ -17,6 +17,31 @@
     "model": "GLM-4.7",
     "base_url": "https://open.bigmodel.cn/api/paas/v4/"
   },
+  "claude": {
+    "model": "claude-sonnet-4-20250514",
+    "base_url": "https://api.anthropic.com"
+  },
+  "router": {
+    "simple": "ollama",
+    "medium": "openai",
+    "complex": "claude",
+    "fallback": "ollama",
+    "fallback_chain": {
+      "claude": ["openai", "ollama"],
+      "openai": ["ollama"],
+      "ollama": []
+    }
+  },
+  "circuit_breaker": {
+    "failure_threshold": 3,
+    "cooldown_seconds": 300
+  },
+  "token_budget": {
+    "simple": 500,
+    "medium": 2000,
+    "complex": 4000,
+    "tool_intensive": 6000
+  },
   "wake_word": {
     "keywords": ["jarvis", "贾维斯"],
     "sensitivity": 0.5

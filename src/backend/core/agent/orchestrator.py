@@ -52,6 +52,7 @@ class AgentOrchestrator:
         self.discovery = get_tool_discovery()
         self.conversation = get_conversation_manager()
         self._installer = None
+        self._tools_synced = False
 
         if mcp_manager:
             self.registry.set_mcp_manager(mcp_manager)
@@ -66,6 +67,7 @@ class AgentOrchestrator:
     async def initialize(self):
         """初始化协调器"""
         await self.registry.sync_from_mcp()
+        self._tools_synced = True
         logger.info(f"AgentOrchestrator initialized with {len(self.registry.get_all_tools())} tools")
 
     async def process(self, user_message: str, session_id: str = "default") -> AgentResponse:
@@ -80,6 +82,12 @@ class AgentOrchestrator:
             AgentResponse: 处理结果
         """
         logger.info(f"Processing message [{session_id}]: {user_message[:80]}...")
+
+        # 惰性同步：如果 MCP 已连接但工具尚未同步，立即同步
+        if not self._tools_synced and self.mcp_manager:
+            await self.registry.sync_from_mcp()
+            self._tools_synced = True
+            logger.info(f"Lazy-synced {len(self.registry.get_all_tools())} tools from MCP")
 
         session = self.conversation.get_or_create_session(session_id)
         session.add_message("user", user_message)
@@ -146,6 +154,8 @@ class AgentOrchestrator:
                     system_prompt=system_prompt
                 )
 
+                logger.debug(f"ReAct iter {iteration}: finish={turn.finish_reason}, tool_calls={[tc.name for tc in turn.tool_calls] if turn.tool_calls else []}")
+
                 if turn.finish_reason == "stop" or not turn.tool_calls:
                     # LLM 给出了最终回答
                     session.add_message("assistant", turn.content)
@@ -172,6 +182,7 @@ class AgentOrchestrator:
                         return install_response
 
                     # 执行实际工具调用
+                    logger.info(f"Calling tool: {tc.name}")
                     result = await self._execute_tool_call(tc)
                     all_tool_results.append({
                         "tool": tc.name,
@@ -230,18 +241,19 @@ class AgentOrchestrator:
                 f"{matched_tool.server_name}_{matched_tool.name}",
                 arguments
             )
-            # 把 MCP 结果转为可序列化的格式
-            if hasattr(result, '__iter__') and not isinstance(result, (str, dict)):
-                # MCP CallToolResult 的 content 列表
+            # 把 MCP CallToolResult 转为可序列化的格式
+            if hasattr(result, 'content'):
+                # MCP CallToolResult 对象
                 contents = []
-                for item in result:
+                for item in result.content:
                     if hasattr(item, 'text'):
                         contents.append(item.text)
-                    elif hasattr(item, 'type'):
-                        contents.append(str(item))
                     else:
                         contents.append(str(item))
-                return {"result": "\n".join(contents)}
+                text = "\n".join(contents)
+                if hasattr(result, 'isError') and result.isError:
+                    return {"error": text}
+                return {"result": text}
             return {"result": str(result)}
         except Exception as e:
             logger.error(f"Tool execution error: {e}")

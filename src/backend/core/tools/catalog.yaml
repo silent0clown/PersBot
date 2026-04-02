@@ -40,17 +40,13 @@ tools:
       - "这周天气如何"
     mcp_servers:
       - name: "weather"
-        package: "@anthropic/mcp-server-weather"
-        description: "Anthropic 官方天气 MCP 服务器"
-        install_command: "npx -y @anthropic/mcp-server-weather"
+        package: "@mcp-sidekick/weather"
+        description: "天气查询 MCP 服务器 - Open-Meteo（免费，无需 API Key）"
+        install_command: "npx -y @mcp-sidekick/weather"
         config:
           command: "npx"
-          args: ["-y", "@anthropic/mcp-server-weather"]
-        required_env:
-          - name: "WEATHER_API_KEY"
-            description: "OpenWeather API 密钥"
-            obtain_url: "https://openweathermap.org/api"
-            required: true
+          args: ["-y", "@mcp-sidekick/weather"]
+        required_env: []
 
   # ========== 网络搜索 ==========
   web_search:

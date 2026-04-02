@@ -1,8 +1,0 @@
-servers:
-  weather:
-    args:
-    - -y
-    - '@dangahagan/weather-mcp'
-    command: npx
-    enabled: true
-    name: weather

@@ -557,7 +557,9 @@ class TokenBudgetManager:
 - 支持用户"记住"授权决策，避免重复询问
 - 硬性拦截不可授权的危险操作
 
-### 4.2 三级权限模型
+### 4.2 权限模型
+
+#### 4.2.1 权限级别
 
 ```
 +--------+------------------------------------------+------------------+
@@ -582,6 +584,27 @@ class TokenBudgetManager:
 | (禁止)  | 访问其他用户目录                              | 无法授权          |
 |        | 修改系统关键配置(/etc/passwd等)               |                  |
 +--------+------------------------------------------+------------------+
+```
+
+#### 4.2.2 权限模式 (Mode)
+
+除权限级别外，Agent 还支持全局权限模式切换，控制整体行为：
+
+| 模式 | 行为 | 使用场景 |
+|------|------|---------|
+| default | 正常走权限流程 | 日常对话 |
+| plan | 只读模式，所有写入操作自动拒绝；Agent 仅规划不执行 | 用户想先看计划再决定 |
+| bypass | 跳过所有权限确认，自动放行 (黑色仍拦截) | 用户完全信任的场景 |
+
+```
+用户: 帮我规划一下怎么整理 Downloads 目录
+Agent: (mode=plan) 我会先扫描目录内容，列出清理计划给你看，不实际操作。
+       扫描结果: 发现 50 个重复文件、12 个过期安装包...
+       清理计划: [列出具体操作]
+       执行吗？[执行] [取消] [修改计划]
+
+用户: 执行
+Agent: (mode 切回 default) 好的，开始执行~
 ```
 
 ### 4.3 权限配置文件
@@ -725,13 +748,27 @@ class PermissionRequest:
         """检查请求是否已超时"""
         return (datetime.now() - self.created_at).total_seconds() > self.timeout_seconds
 
+class PermissionMode(Enum):
+    DEFAULT = "default"   # 正常权限流程
+    PLAN = "plan"         # 只读模式，写入自动拒绝
+    BYPASS = "bypass"     # 跳过确认，自动放行 (黑色仍拦截)
+
 class PermissionManager:
     def __init__(self, config_path: str):
         self.config = self._load_config(config_path)
         self.auto_rules = []  # 用户"记住"的规则
+        self.mode = PermissionMode.DEFAULT
+
+    def set_mode(self, mode: PermissionMode):
+        """切换权限模式"""
+        self.mode = mode
 
     def check(self, tool_name: str, action: str, target: str) -> PermissionRequest:
         """评估操作的权限级别, 返回权限请求对象"""
+        # 1. 黑名单检查 (任何模式都拦截)
+        # 2. plan 模式: 所有非绿色操作拒绝
+        # 3. bypass 模式: 非黑色操作自动放行
+        # 4. default 模式: 正常分级处理
 
     def is_auto_approved(self, request: PermissionRequest) -> bool:
         """检查是否匹配用户已授权的"记住"规则"""
@@ -742,6 +779,7 @@ class PermissionManager:
     def request_approval(self, request: PermissionRequest) -> bool:
         """向用户发起授权请求, 等待回应"""
         # 通过当前 channel 的交互接口向用户展示确认对话框
+        # 超时逻辑: 等待 request.timeout_seconds，超时后调用 handle_timeout
 
     def handle_timeout(self, request: PermissionRequest) -> str:
         """处理权限请求超时，返回超时提示消息"""
@@ -872,20 +910,29 @@ class ShortTermMemory:
     def add(self, role: str, content: str):
         """添加消息"""
         self.messages.append({"role": role, "content": content})
-        if self._estimate_tokens() > self.max_tokens:
+        current_tokens = self._estimate_tokens()
+        # 当使用量达到上限的 80% 时提前压缩，避免超限后被动处理
+        if current_tokens > self.max_tokens * 0.8:
             self._compress()
 
     def _compress(self):
         """
-        压缩策略:
+        压缩策略 (滑动窗口 + 重要性加权):
         1. 保留 system prompt (messages[0])
-        2. 取最早的 N 条非系统消息
-        3. 用 LLM 生成摘要替代这些消息
+        2. 保留最近的 2/3 消息 (最近的对话最重要)
+        3. 对较早的 1/3 消息用 LLM 生成摘要
         4. 插入摘要作为 system 消息
         """
         system = self.messages[0]
-        to_summarize = self.messages[1:4]   # 取最早3条
-        remaining = self.messages[4:]
+        non_system = self.messages[1:]
+
+        total = len(non_system)
+        keep_recent = max(total * 2 // 3, 3)  # 至少保留最近3条
+        to_summarize = non_system[:total - keep_recent]
+        remaining = non_system[total - keep_recent:]
+
+        if not to_summarize:
+            return  # 无可压缩内容
 
         summary = self._generate_summary(to_summarize)
 
@@ -1037,25 +1084,55 @@ MEMORY_EXTRACTION_PROMPT = """
 每次用户发消息时，自动检索相关记忆并注入 system prompt：
 
 ```python
+@dataclass
+class MemoryAttachment:
+    """结构化记忆附件，让 LLM 知道每条记忆的可信度"""
+    content: str         # 记忆内容
+    source: str          # "user_told" | "inferred" | "observed"
+    relevance: float     # 检索相关度 (0.0-1.0)
+    decay: float         # 衰减分数 (0.0-1.0)
+    type: str            # "fact" | "preference" | "event" | "emotion"
+
 class MemoryRetriever:
     def inject_memories(self, user_message: str, system_prompt: str) -> str:
         """
-        检索相关记忆并注入到system prompt中。
+        检索相关记忆并结构化注入到 system prompt 中。
 
         流程:
         1. 用 user_message 检索 top-5 相关记忆
         2. 按 decay_score 过滤 (< 0.1 的不注入)
-        3. 格式化后追加到 system prompt
-        4. 更新被召回记忆的 last_accessed 和 access_count
+        3. 转为 MemoryAttachment，附带来源和可信度信息
+        4. 格式化后追加到 system prompt
+        5. 更新被召回记忆的 last_accessed 和 access_count
         """
-        memories = self.long_term.retrieve(user_message, top_k=5)
-        memories = [m for m in memories if m["decay_score"] > 0.1]
+        raw_memories = self.long_term.retrieve(user_message, top_k=5)
+        raw_memories = [m for m in raw_memories if m["decay_score"] > 0.1]
 
-        if not memories:
+        if not raw_memories:
             return system_prompt
 
-        memory_text = "\n".join(f"- {m['content']}" for m in memories)
-        return system_prompt + f"\n\n[你记得关于主人的以下信息]\n{memory_text}"
+        attachments = [
+            MemoryAttachment(
+                content=m["content"],
+                source=m["source"],
+                relevance=m.get("relevance", 0.5),
+                decay=m["decay_score"],
+                type=m["type"]
+            )
+            for m in raw_memories
+        ]
+
+        return system_prompt + "\n\n" + self._format_attachments(attachments)
+
+    def _format_attachments(self, attachments: list[MemoryAttachment]) -> str:
+        """结构化格式化记忆，标注来源和可信度"""
+        lines = ["[你记得关于主人的以下信息]"]
+        for a in attachments:
+            source_label = {"user_told": "主人说过", "inferred": "推断", "observed": "观察到"}
+            trust = "高" if a.decay > 0.6 else "中" if a.decay > 0.3 else "低"
+            label = source_label.get(a.source, a.source)
+            lines.append(f"- [{label}|可信度:{trust}] {a.content}")
+        return "\n".join(lines)
 ```
 
 ---
@@ -1073,6 +1150,51 @@ class MemoryRetriever:
 
 ```python
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Optional
+from enum import Enum
+
+class ToolErrorCode(str, Enum):
+    """工具错误分类码"""
+    VALIDATION_ERROR = "validation_error"
+    PERMISSION_DENIED = "permission_denied"
+    EXECUTION_ERROR = "execution_error"
+    TIMEOUT = "timeout"
+    LOOP_DETECTED = "loop_detected"
+    RESULT_TOO_LARGE = "result_too_large"
+
+@dataclass
+class ToolResult:
+    """统一工具执行结果，替代纯字符串返回"""
+    content: str                           # 结果文本 (成功时) 或错误描述 (失败时)
+    is_error: bool = False                 # 是否为错误结果
+    error_code: Optional[str] = None       # 错误分类码 (给 LLM 判断后续策略)
+    error_message: Optional[str] = None    # 详细错误信息 (日志用)
+    metadata: dict = None                  # 扩展字段 (耗时、token数等)
+
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}
+
+    def to_tool_message(self) -> str:
+        """转换为注入 LLM 上下文的工具结果文本"""
+        if self.is_error:
+            return f"[工具错误:{self.error_code}] {self.content}"
+        return self.content
+
+class ValidationResult:
+    """输入验证结果"""
+    def __init__(self, valid: bool, error: str = ""):
+        self.valid = valid
+        self.error = error
+
+    @staticmethod
+    def ok() -> "ValidationResult":
+        return ValidationResult(True)
+
+    @staticmethod
+    def fail(error: str) -> "ValidationResult":
+        return ValidationResult(False, error)
 
 class BaseTool(ABC):
     """所有工具的基类"""
@@ -1092,9 +1214,35 @@ class BaseTool(ABC):
     def parameters_schema(self) -> dict:
         """参数的JSON Schema定义"""
 
+    @property
+    def is_read_only(self) -> bool:
+        """是否为只读操作。只读工具可并行执行"""
+        return False
+
+    @property
+    def is_concurrency_safe(self) -> bool:
+        """是否可与其他工具并发执行"""
+        return False
+
+    @property
+    def max_result_size(self) -> int:
+        """结果最大字节数，超出则写入磁盘返回摘要"""
+        return 100_000
+
+    def validate_input(self, **kwargs) -> ValidationResult:
+        """校验输入参数的合法性 (类型、范围、格式)。
+        默认实现: 无校验，子类按需覆盖。
+        在 check_permissions 之前调用。"""
+        return ValidationResult.ok()
+
+    def check_permissions(self, ctx, **kwargs) -> "PermissionRequest":
+        """检查执行权限。返回权限请求对象。
+        在 validate_input 通过后调用。"""
+        return None  # 默认无权限检查
+
     @abstractmethod
-    def execute(self, **kwargs) -> str:
-        """执行工具, 返回结果文本"""
+    def execute(self, **kwargs) -> ToolResult:
+        """执行工具, 返回 ToolResult"""
 
     def to_schema(self) -> dict:
         """转换为LLM工具调用格式"""
@@ -1113,17 +1261,49 @@ class BaseTool(ABC):
 class ReadFileTool(BaseTool):
     name = "read_file"
     description = "读取指定路径的文件内容"
-    # execute: 读取文件，返回内容
+
+    @property
+    def is_read_only(self) -> bool:
+        return True
+
+    @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    def validate_input(self, path: str, **kwargs) -> ValidationResult:
+        if not path:
+            return ValidationResult.fail("path 参数不能为空")
+        return ValidationResult.ok()
+
+    def execute(self, path: str, **kwargs) -> ToolResult:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return ToolResult(content=content)
+        except FileNotFoundError:
+            return ToolResult(content=f"文件不存在: {path}", is_error=True, error_code=ToolErrorCode.EXECUTION_ERROR)
+        except PermissionError:
+            return ToolResult(content=f"无权限读取: {path}", is_error=True, error_code=ToolErrorCode.PERMISSION_DENIED)
 
 class WriteFileTool(BaseTool):
     name = "write_file"
     description = "将内容写入指定路径的文件"
-    # execute: 写入文件
+    # is_read_only = False (默认)
+    # execute: 写入文件, 返回 ToolResult
 
 class ListDirectoryTool(BaseTool):
     name = "list_directory"
     description = "列出指定目录下的文件和文件夹"
-    # execute: 列出目录内容
+
+    @property
+    def is_read_only(self) -> bool:
+        return True
+
+    @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
+    # execute: 列出目录内容, 返回 ToolResult
 ```
 
 #### 6.3.2 命令执行 (shell.py)
@@ -1132,8 +1312,14 @@ class ListDirectoryTool(BaseTool):
 class ShellTool(BaseTool):
     name = "run_command"
     description = "在系统终端中执行命令并返回输出"
-    # execute: 运行shell命令, 返回stdout+stderr
-    # 注意: 每次执行前经过权限模块审查
+
+    @property
+    def is_read_only(self) -> bool:
+        return False  # shell 命令可能有副作用
+
+    @property
+    def is_concurrency_safe(self) -> bool:
+        return False  # shell 命令不应并发执行
 
     # 危险模式黑名单
     DANGEROUS_PATTERNS = [
@@ -1143,14 +1329,25 @@ class ShellTool(BaseTool):
         r":\(\)\{",  # fork bomb
     ]
 
-    def execute(self, command: str, **kwargs) -> str:
-        # 执行前检查危险模式
+    def validate_input(self, command: str, **kwargs) -> ValidationResult:
+        if not command or not command.strip():
+            return ValidationResult.fail("command 参数不能为空")
         for pattern in self.DANGEROUS_PATTERNS:
             if re.search(pattern, command):
-                raise ToolExecutionError(f"检测到危险命令模式: {pattern}")
+                return ValidationResult.fail(f"检测到危险命令模式: {pattern}")
+        return ValidationResult.ok()
 
-        # 建议使用受限shell (rbash) 或命令白名单
-        return self._execute_in_restricted_shell(command)
+    def execute(self, command: str, **kwargs) -> ToolResult:
+        try:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+            output = result.stdout + result.stderr
+            return ToolResult(content=output, metadata={"return_code": result.returncode})
+        except subprocess.TimeoutExpired:
+            return ToolResult(
+                content="命令执行超时(30秒)",
+                is_error=True,
+                error_code=ToolErrorCode.TIMEOUT
+            )
 ```
 
 #### 6.3.3 音乐播放 (music.py)
@@ -1159,10 +1356,19 @@ class ShellTool(BaseTool):
 class MusicPlayerTool(BaseTool):
     name = "play_music"
     description = "播放指定路径的音乐文件或控制音乐播放(暂停/停止/下一首)"
+
+    @property
+    def is_read_only(self) -> bool:
+        return True  # 播放音乐不修改文件
+
+    @property
+    def is_concurrency_safe(self) -> bool:
+        return True
+
     # execute:
     #   Linux: 调用 mpv / vlc / paplay
     #   Windows: 调用 wmplayer 或 pygame.mixer
-    # 跨平台兼容通过 platform 模块判断
+    #   返回 ToolResult
 ```
 
 #### 6.3.4 插件管理 (plugin_manager.py)
@@ -1171,10 +1377,21 @@ class MusicPlayerTool(BaseTool):
 class PluginManagerTool(BaseTool):
     name = "manage_plugins"
     description = "安装、卸载或列出已安装的MCP插件"
+
+    @property
+    def is_read_only(self) -> bool:
+        return False  # 安装/卸载是写操作
+
+    def validate_input(self, action: str, **kwargs) -> ValidationResult:
+        if action not in ("install", "uninstall", "list"):
+            return ValidationResult.fail(f"不支持的 action: {action}")
+        return ValidationResult.ok()
+
     # execute:
     #   action="install": 从插件源安装指定MCP插件
     #   action="uninstall": 卸载指定插件
     #   action="list": 列出已安装插件
+    #   返回 ToolResult
 ```
 
 ### 6.4 工具注册中心
@@ -1221,6 +1438,8 @@ class ToolRegistry:
 
 ### 6.5 MCP 插件结构
 
+#### 6.5.1 目录结构
+
 每个 MCP 插件是一个独立目录：
 
 ```
@@ -1243,6 +1462,7 @@ manifest.json 示例：
   "version": "1.0.0",
   "description": "查询城市天气预报",
   "author": "community",
+  "transport": "stdio",
   "command": "python server.py",
   "tools": [
     {
@@ -1255,6 +1475,58 @@ manifest.json 示例：
     }
   ]
 }
+```
+
+#### 6.5.2 传输协议支持
+
+MCP Server 支持多种传输方式，适应不同部署场景：
+
+```python
+class MCPTransport(Enum):
+    STDIO = "stdio"            # 子进程 stdin/stdout 通信 (默认，本地插件)
+    SSE = "sse"                # Server-Sent Events (远程服务)
+    HTTP = "http"              # Streamable HTTP (RESTful 风格)
+    WEBSOCKET = "websocket"    # WebSocket (实时双向通信)
+
+class MCPClient:
+    """MCP 协议客户端，支持多种传输方式"""
+
+    def __init__(self, transport: MCPTransport, **kwargs):
+        self.transport = transport
+        if transport == MCPTransport.STDIO:
+            self._conn = StdioConnection(command=kwargs["command"])
+        elif transport == MCPTransport.SSE:
+            self._conn = SSEConnection(url=kwargs["url"])
+        elif transport == MCPTransport.HTTP:
+            self._conn = HTTPConnection(url=kwargs["url"])
+        elif transport == MCPTransport.WEBSOCKET:
+            self._conn = WebSocketConnection(url=kwargs["url"])
+
+    async def connect(self):
+        """建立连接"""
+        await self._conn.connect()
+
+    async def discover(self) -> "MCPDiscovery":
+        """发现 MCP Server 提供的所有能力"""
+        tools = await self.list_tools()
+        resources = await self.list_resources()   # 静态资源 (文件/URL/数据集)
+        prompts = await self.list_prompts()       # 预定义提示模板
+        return MCPDiscovery(tools=tools, resources=resources, prompts=prompts)
+
+    async def list_tools(self) -> list[dict]:
+        """获取工具列表"""
+
+    async def list_resources(self) -> list[dict]:
+        """获取资源列表 (文件、URL、数据集等)"""
+
+    async def list_prompts(self) -> list[dict]:
+        """获取预定义提示模板"""
+
+    async def call_tool(self, name: str, arguments: dict) -> ToolResult:
+        """调用远程工具"""
+
+    async def disconnect(self):
+        """断开连接"""
 ```
 
 ### 6.6 工具调用无法满足时的处理策略
@@ -2083,6 +2355,7 @@ class PetAgent:
 
     def __init__(self, config: AgentConfig):
         # 初始化各模块
+        self.store = AgentStore({...})           # 运行时状态管理
         self.router = ModelRouter(...)           # 模型路由
         self.tool_registry = ToolRegistry(...)   # 工具注册中心
         self.permission = PermissionManager(...) # 权限控制
@@ -2092,6 +2365,7 @@ class PetAgent:
         self.persona = PersonaManager(...)       # 人格管理
         self.stt = STTProvider(...)              # 语音识别
         self.tts = TTSProvider(...)              # 语音合成
+        self.loop_detector = ToolLoopDetector(...)  # 循环检测
 
     def handle(self, request: PetRequest) -> PetResponse:
         """处理一个请求的完整流程"""
@@ -2122,12 +2396,11 @@ class PetAgent:
         response = PetResponse(text=response_text)
         if request.channel == "desktop" and self.tts:
             response.audio_data = self.tts.synthesize(response_text)
-        # TODO: 情绪分析, 填充 emotion 字段
 
         return response
 
-    def _reasoning_loop(self, provider, tools, max_iterations=10):
-        """推理-执行循环, 支持多步工具调用"""
+    async def _reasoning_loop(self, provider, tools, max_iterations=10):
+        """推理-执行循环, 支持多步工具调用和并发执行"""
         for _ in range(max_iterations):
             result = provider.chat(
                 messages=self.short_memory.get_messages(),
@@ -2135,38 +2408,179 @@ class PetAgent:
             )
 
             if result.finish_reason == "stop":
-                # LLM 生成了最终回复
                 self.short_memory.add("assistant", result.content)
                 return result.content
 
             if result.tool_calls:
-                for call in result.tool_calls:
-                    # 权限检查
-                    perm = self.permission.check(call.name, call.action, call.target)
-                    if perm.level != PermissionLevel.GREEN:
-                        if not self.permission.request_approval(perm):
-                            # 用户拒绝
-                            self.short_memory.add("tool_result", f"{call.name}: 用户拒绝执行")
-                            continue
-
-                    # 执行工具
-                    tool = self.tool_registry.get_tool(call.name)
-                    result_text = tool.execute(**call.arguments)
-                    self.short_memory.add("tool_result", result_text)
+                # 按并发安全性分批执行
+                tool_results = await self._execute_tool_batch(result.tool_calls)
+                for call, tr in zip(result.tool_calls, tool_results):
+                    self.short_memory.add("tool_result", tr.to_tool_message())
 
         return "抱歉主人，这个任务有点复杂，我处理不过来了..."
+
+    async def _execute_tool_batch(self, tool_calls: list) -> list[ToolResult]:
+        """按并发安全性分批执行工具"""
+        safe_calls = []
+        unsafe_calls = []
+
+        for call in tool_calls:
+            tool = self.tool_registry.get_tool(call.name)
+            if tool and tool.is_read_only and tool.is_concurrency_safe:
+                safe_calls.append(call)
+            else:
+                unsafe_calls.append(call)
+
+        results = {}
+
+        # 并行执行安全工具
+        if safe_calls:
+            safe_tasks = [self._exec_one(call) for call in safe_calls]
+            safe_results = await asyncio.gather(*safe_tasks, return_exceptions=True)
+            for call, result in zip(safe_calls, safe_results):
+                results[call.name] = result if not isinstance(result, Exception) else ToolResult(
+                    content=f"工具执行异常: {str(result)}",
+                    is_error=True,
+                    error_code=ToolErrorCode.EXECUTION_ERROR
+                )
+
+        # 串行执行不安全工具
+        for call in unsafe_calls:
+            results[call.name] = await self._exec_one(call)
+
+        return [results.get(call.name) for call in tool_calls]
+
+    async def _exec_one(self, call) -> ToolResult:
+        """执行单个工具，包含完整的验证→权限→执行流程"""
+        tool = self.tool_registry.get_tool(call.name)
+        if not tool:
+            return ToolResult(
+                content=f"未找到工具: {call.name}",
+                is_error=True,
+                error_code=ToolErrorCode.EXECUTION_ERROR
+            )
+
+        # 1. 循环检测
+        if not self.loop_detector.check(call.name):
+            return ToolResult(
+                content=f"工具 '{call.name}' 短时间内被频繁调用，已被阻止",
+                is_error=True,
+                error_code=ToolErrorCode.LOOP_DETECTED
+            )
+
+        # 2. 输入验证
+        validation = tool.validate_input(**call.arguments)
+        if not validation.valid:
+            return ToolResult(
+                content=f"参数错误: {validation.error}",
+                is_error=True,
+                error_code=ToolErrorCode.VALIDATION_ERROR
+            )
+
+        # 3. 权限检查
+        perm = self.permission.check(call.name, call.action, call.target)
+        if perm.level != PermissionLevel.GREEN:
+            if not self.permission.request_approval(perm):
+                return ToolResult(
+                    content=f"{call.name}: 用户拒绝执行",
+                    is_error=True,
+                    error_code=ToolErrorCode.PERMISSION_DENIED
+                )
+
+        # 4. 执行
+        try:
+            result = tool.execute(**call.arguments)
+
+            # 5. 大结果磁盘持久化
+            if not result.is_error and len(result.content) > tool.max_result_size:
+                path = self._save_to_disk(result.content)
+                result = ToolResult(
+                    content=f"[结果已保存到 {path}，共 {len(result.content)} 字节]\n{result.content[:500]}..."
+                )
+
+            return result
+
+        except Exception as e:
+            logging.exception(f"工具执行异常: {call.name}")
+            return ToolResult(
+                content=f"执行 {call.name} 时出错: {str(e)}",
+                is_error=True,
+                error_code=ToolErrorCode.EXECUTION_ERROR
+            )
 ```
 
-### 10.3 全局错误处理
+### 10.3 运行时状态管理 (AgentStore)
 
-Agent 运行过程中可能遇到各类错误，需要统一处理：
+Agent 运行时需要维护全局状态（当前会话、权限模式、工具执行状态等），使用简易 Store 集中管理：
+
+```python
+from typing import Callable, Any
+
+class AgentStore:
+    """简易状态管理，支持订阅通知"""
+
+    def __init__(self, initial_state: dict):
+        self._state = initial_state
+        self._listeners: list[Callable] = []
+
+    def get_state(self) -> dict:
+        return self._state.copy()
+
+    def get(self, key: str, default=None) -> Any:
+        return self._state.get(key, default)
+
+    def set_state(self, partial: dict):
+        """合并更新状态，通知所有订阅者"""
+        self._state = {**self._state, **partial}
+        for listener in self._listeners:
+            listener(self._state)
+
+    def subscribe(self, callback: Callable) -> Callable:
+        """订阅状态变化，返回取消订阅函数"""
+        self._listeners.append(callback)
+        return lambda: self._listeners.remove(callback)
+```
+
+**典型状态字段：**
+
+```python
+initial_state = {
+    "session_id": "",
+    "user_id": "",
+    "channel": "",
+    "permission_mode": "default",    # default | plan | bypass
+    "current_provider": "",          # 当前使用的模型
+    "tool_execution_count": 0,       # 本轮工具调用计数
+    "is_busy": False,                # 是否正在处理请求
+    "last_error": None,              # 最近一次错误
+}
+```
+
+**使用示例：**
+
+```python
+# 权限模式切换
+store.set_state({"permission_mode": "plan"})
+
+# 其他模块订阅状态变化
+store.subscribe(lambda s: logger.info(f"模式切换: {s['permission_mode']}"))
+
+# 查询当前状态
+if store.get("permission_mode") == "plan":
+    # 拒绝所有写入操作
+    pass
+```
+
+### 10.4 全局错误处理
+
+Agent 运行过程中可能遇到各类错误，统一通过 `ToolResult` 的 `error_code` 进行分类处理：
 
 ```python
 class ErrorHandler:
     """全局错误处理器"""
 
     @staticmethod
-    async def handle_llm_error(provider_name: str, error: Exception) -> str:
+    def handle_llm_error(provider_name: str, error: Exception) -> str:
         """LLM调用错误处理"""
         if isinstance(error, RateLimitError):
             return "主人，API额度用完了，让我歇歇~"
@@ -2180,20 +2594,37 @@ class ErrorHandler:
             return "主人，我脑子有点乱，稍等一下~"
 
     @staticmethod
-    def handle_tool_error(tool_name: str, error: Exception) -> str:
-        """工具执行错误处理"""
-        if isinstance(error, ToolExecutionError):
-            return f"[工具错误] {tool_name}: {str(error)}"
-        elif isinstance(error, PermissionError):
-            return f"[权限错误] {tool_name}: 没有执行权限"
-        elif isinstance(error, FileNotFoundError):
-            return f"[文件错误] 找不到指定的文件或目录"
-        else:
-            logging.exception(f"工具执行异常: {tool_name}")
-            return f"[错误] 执行 {tool_name} 时出错了"
+    def handle_tool_result(result: ToolResult) -> str:
+        """根据 ToolResult.error_code 分类处理"""
+        handlers = {
+            ToolErrorCode.VALIDATION_ERROR: lambda r: f"参数有误，{r.content}",
+            ToolErrorCode.PERMISSION_DENIED: lambda r: "主人没允许我做这个操作~",
+            ToolErrorCode.TIMEOUT: lambda r: f"操作超时了: {r.content}",
+            ToolErrorCode.LOOP_DETECTED: lambda r: "我好像在重复做同一件事，停下来想想~",
+            ToolErrorCode.RESULT_TOO_LARGE: lambda r: r.content,  # 已经处理为摘要
+            ToolErrorCode.EXECUTION_ERROR: lambda r: f"执行出错: {r.content}",
+        }
+        handler = handlers.get(result.error_code, lambda r: f"未知错误: {r.content}")
+        return handler(result)
 ```
 
-### 10.4 操作审计日志
+**reasoning_loop 中的统一错误处理流程：**
+
+```
+工具调用
+    │
+    ├── validate_input() 失败 → ToolResult(error_code=VALIDATION_ERROR)
+    ├── check_permissions() 拒绝 → ToolResult(error_code=PERMISSION_DENIED)
+    ├── 循环检测阻止 → ToolResult(error_code=LOOP_DETECTED)
+    ├── 执行超时 → ToolResult(error_code=TIMEOUT)
+    ├── 结果过大 → ToolResult(error_code=RESULT_TO_LARGE, content=摘要)
+    └── 执行异常 → ToolResult(error_code=EXECUTION_ERROR)
+    │
+    v
+ToolResult.to_tool_message() → 注入 LLM 上下文，LLM 根据 error_code 决定下一步
+```
+
+### 10.5 操作审计日志
 
 记录所有工具调用和权限请求，供安全审计和问题排查：
 
@@ -2273,7 +2704,7 @@ class AuditLogger:
         logging.getLogger("audit").info(json.dumps(entry))
 ```
 
-### 10.5 日志配置
+### 10.6 日志配置
 
 ```python
 import logging
@@ -2473,7 +2904,8 @@ pet-agent/
 │   ├── agent.py                # PetAgent 主控引擎
 │   ├── config.py               # 配置加载 (读取.env)
 │   ├── router.py               # 模型路由器
-│   └── circuit_breaker.py      # 熔断器 (模型健康管理)
+│   ├── circuit_breaker.py      # 熔断器 (模型健康管理)
+│   └── store.py                # AgentStore 运行时状态管理
 │
 ├── llm/
 │   ├── __init__.py
@@ -2496,10 +2928,12 @@ pet-agent/
 ├── tools/
 │   ├── __init__.py
 │   ├── base.py                 # BaseTool 抽象接口
+│   ├── result.py               # ToolResult / ValidationResult / ToolErrorCode
 │   ├── file_ops.py             # 文件读写工具
 │   ├── shell.py                # 命令执行工具
 │   ├── music.py                # 音乐播放工具
 │   ├── plugin_manager.py       # MCP插件管理工具
+│   ├── mcp_client.py           # MCP协议客户端 (多传输协议)
 │   └── registry.py             # ToolRegistry 工具注册中心
 │
 ├── plugins/                     # MCP插件目录 (动态, .gitignore)
@@ -2621,6 +3055,9 @@ openai-whisper>=20230918 # 本地语音识别
 edge-tts>=6.1.0         # 文字转语音
 requests>=2.31.0        # HTTP 请求
 mcp>=1.0.0              # MCP 协议SDK
+psutil>=5.9.0           # 进程管理 (MCP Server 监控)
+websockets>=12.0        # MCP WebSocket 传输
+aiohttp>=3.9.0          # MCP HTTP/SSE 传输
 ```
 
 ### B. .gitignore
@@ -2649,3 +3086,9 @@ build/
 | Skill系统 | 不单独实现 | LLM规划能力足够, 避免过度设计, 后期可作为记忆的一种形式实现 |
 | 模型健康管理 | 熔断器模式 | 连续失败自动跳过, 冷却后探测恢复, 避免无效超时等待 |
 | API地址 | BASE_URL外置 | 通过.env配置, 支持官方/第三方中转/Azure/本地兼容服务, 零代码切换 |
+| 工具并发 | 按安全性分区 | 只读工具并行, 写入工具串行, 兼顾效率与安全 |
+| 工具结果 | ToolResult 类型 | 替代纯字符串，携带错误码/元数据，LLM 可据此决定后续策略 |
+| 权限模式 | 三模式切换 | default/plan/bypass，支持先规划再执行的交互模式 |
+| MCP传输 | 多协议 | stdio/SSE/HTTP/WebSocket，适应本地和远程部署场景 |
+| 记忆注入 | 结构化附件 | MemoryAttachment 附带来源和可信度，LLM 可判断记忆可靠性 |
+| 状态管理 | AgentStore | 集中管理运行时状态，支持订阅通知，模块间解耦 |

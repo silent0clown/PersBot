@@ -1,0 +1,16 @@
+servers:
+  brave-search:
+    args:
+    - -y
+    - '@anthropic/mcp-server-brave-search'
+    command: npx
+    enabled: false
+    env:
+      BRAVE_API_KEY: ${BRAVE_API_KEY}
+    name: brave-search
+  weather:
+    args:
+    - core/mcp/weather_server.py
+    command: python3
+    enabled: true
+    name: weather

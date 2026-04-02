@@ -25,6 +25,8 @@ from .conversation import (
     get_conversation_manager,
     set_conversation_manager
 )
+from .pet_agent import PetAgent, AgentConfig, AgentStore, get_pet_agent, set_pet_agent
+from .loop_detector import LoopDetector
 
 __all__ = [
     # subagent 模块
@@ -49,5 +51,13 @@ __all__ = [
     'SessionState',
     'PendingInstall',
     'get_conversation_manager',
-    'set_conversation_manager'
+    'set_conversation_manager',
+    # pet_agent 模块
+    'PetAgent',
+    'AgentConfig',
+    'AgentStore',
+    'get_pet_agent',
+    'set_pet_agent',
+    # loop_detector 模块
+    'LoopDetector'
 ]
